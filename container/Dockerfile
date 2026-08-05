@@ -1,8 +1,10 @@
 # syntax=docker/dockerfile:1.7
 
-ARG GO_VERSION=1.25.3
+ARG GO_VERSION=1.26.5
+ARG GO_IMAGE_DIGEST=sha256:6c5605ab3a9a9fb3c4eafe5b3d63cdbf3881caf113262b67862547b54a9db599
+ARG DEBIAN_IMAGE_DIGEST=sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS pingtunnel-builder
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm@${GO_IMAGE_DIGEST} AS pingtunnel-builder
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -30,7 +32,7 @@ RUN go test ./... \
     && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
         go build -trimpath -ldflags='-s -w' -o /out/pingtunnel ./cmd
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS udpredund-builder
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm@${GO_IMAGE_DIGEST} AS udpredund-builder
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -48,7 +50,7 @@ RUN go test ./... \
         -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${REVISION} -X main.date=${BUILD_DATE}" \
         -o /out/udpredund ./cmd/udpredund
 
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@${DEBIAN_IMAGE_DIGEST}
 
 ARG VERSION=dev
 ARG REVISION=unknown

@@ -114,6 +114,7 @@ make test-race
 make vet
 make fuzz
 make lint
+make privacy
 VERSION=v0.1.0-beta.1 make package
 ```
 

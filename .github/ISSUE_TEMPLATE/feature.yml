@@ -1,0 +1,32 @@
+name: Feature request
+description: Propose a scoped improvement
+title: "feature: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the operator need without production identifiers.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: compatibility
+    attributes:
+      label: UDR1 compatibility impact
+      options:
+        - No wire-format change
+        - Unsure
+        - Requires an explicitly incompatible future protocol
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Resource, security, and rollback considerations

@@ -23,6 +23,7 @@ make test-race
 make vet
 make fuzz
 make lint
+make privacy
 ```
 
 Container or deployment changes should also run the relevant image E2E,

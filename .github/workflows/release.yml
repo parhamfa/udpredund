@@ -1,0 +1,263 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26.5"
+  IMAGE_NAME: ghcr.io/parhamfa/udpredund-pingtunnel
+
+jobs:
+  validate:
+    name: Validate release source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out complete source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends file jq ripgrep shellcheck
+
+      - name: Validate tag and main ancestry
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          [[ "$GITHUB_REF" == refs/tags/* ]]
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z.-]+$ ]]
+          test -f "docs/release-notes-$VERSION.md"
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: Run release gates
+        run: |
+          make test
+          make test-race
+          make vet
+          make lint
+          make privacy
+
+  assets:
+    name: Build and attest release assets
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Download pinned Syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          syft-version: v1.50.0
+
+      - name: Build binaries and integration bundles
+        env:
+          VERSION: ${{ github.ref_name }}
+          REVISION: ${{ github.sha }}
+        run: |
+          BUILD_DATE=$(git show -s --format=%cI "$GITHUB_SHA")
+          mkdir -p build dist
+          OUTPUT_DIR="$PWD/build" BUILD_DATE="$BUILD_DATE" ./scripts/build-binaries.sh
+          install -m 0755 build/udpredund-linux-amd64 dist/udpredund-linux-amd64
+          install -m 0755 build/udpredund-linux-arm64 dist/udpredund-linux-arm64
+          BINARY_DIR="$PWD/build" OUTPUT_DIR="$PWD/dist" ARCH=amd64 ./scripts/package-ubuntu.sh
+          BINARY_DIR="$PWD/build" OUTPUT_DIR="$PWD/dist" ARCH=arm64 ./scripts/package-ubuntu.sh
+          OUTPUT_DIR="$PWD/dist" ./scripts/package-routeros.sh
+
+      - name: Build architecture-specific RouterOS image archives
+        env:
+          VERSION: ${{ github.ref_name }}
+          REVISION: ${{ github.sha }}
+        run: |
+          BUILD_DATE=$(git show -s --format=%cI "$GITHUB_SHA")
+          for architecture in amd64 arm64; do
+            image="udpredund-release:$architecture"
+            docker buildx build \
+              --platform "linux/$architecture" \
+              --file container/Dockerfile \
+              --tag "$image" \
+              --build-arg "VERSION=$VERSION" \
+              --build-arg "REVISION=$REVISION" \
+              --build-arg "BUILD_DATE=$BUILD_DATE" \
+              --provenance=false \
+              --sbom=false \
+              --load \
+              .
+            docker save \
+              --output "$PWD/dist/udpredund-pingtunnel-$VERSION-routeros-$architecture.tar" \
+              "$image"
+          done
+
+      - name: Generate SPDX SBOMs
+        env:
+          VERSION: ${{ github.ref_name }}
+          SYFT: ${{ steps.syft.outputs.cmd }}
+        run: |
+          "$SYFT" dir:. \
+            --exclude './.git/**' --exclude './build/**' --exclude './dist/**' \
+            -o "spdx-json=dist/udpredund-$VERSION-source.spdx.json"
+          for architecture in amd64 arm64; do
+            archive="dist/udpredund-pingtunnel-$VERSION-routeros-$architecture.tar"
+            "$SYFT" "docker-archive:$archive" \
+              -o "spdx-json=dist/udpredund-pingtunnel-$VERSION-routeros-$architecture.spdx.json"
+          done
+
+      - name: Add notices, checksums, and verify every asset
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          install -m 0644 LICENSE dist/LICENSE
+          install -m 0644 THIRD_PARTY_NOTICES dist/THIRD_PARTY_NOTICES
+          install -m 0644 third_party/pingtunnel/LICENSE dist/pingtunnel-LICENSE
+          checksum_file=$(mktemp)
+          (
+            cd dist
+            find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\0' \
+              | sort -z \
+              | xargs -0 sha256sum > "$checksum_file"
+          )
+          mv "$checksum_file" dist/SHA256SUMS
+          ./scripts/verify-release-assets.sh "$VERSION" "$PWD/dist"
+
+      - name: Attest release files
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: dist/*
+
+      - name: Upload release files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  image:
+    name: Publish and attest GHCR image
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive reproducible build metadata
+        id: metadata
+        run: echo "build_date=$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push versioned multi-architecture image
+        id: push
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./container/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            REVISION=${{ github.sha }}
+            BUILD_DATE=${{ steps.metadata.outputs.build_date }}
+          annotations: |
+            index:org.opencontainers.image.description=UDR1 selective UDP redundancy with pinned PingTunnel
+            index:org.opencontainers.image.source=https://github.com/parhamfa/udpredund
+            index:org.opencontainers.image.licenses=MIT
+          provenance: mode=max
+          sbom: true
+
+      - name: Add GitHub provenance to the image digest
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Inspect published manifest
+        run: docker buildx imagetools inspect "${IMAGE_NAME}:${GITHUB_REF_NAME}"
+
+  release:
+    name: Create GitHub prerelease
+    needs: [assets, image]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download release files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets
+          path: dist
+
+      - name: Verify checksums again
+        run: (cd dist && sha256sum -c SHA256SUMS)
+
+      - name: Create or update prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          notes="docs/release-notes-$VERSION.md"
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release upload "$VERSION" dist/* --clobber
+            gh release edit "$VERSION" --prerelease --title "$VERSION" --notes-file "$notes"
+          else
+            gh release create "$VERSION" dist/* \
+              --verify-tag --prerelease --title "$VERSION" --notes-file "$notes"
+          fi
