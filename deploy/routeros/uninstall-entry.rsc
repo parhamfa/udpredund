@@ -9,6 +9,7 @@
 :local envList "udrbe-env"
 :local containerName "udrbe-carrier"
 :local natComment "udpredund:v0.1-entry-icmp-srcnat"
+:local entryGatewayCIDR ($entryPrefix . ".1/24")
 :local entryContainerIP ($entryPrefix . ".2")
 :local udrListenPort 45111
 :local rootDir ($storageRoot . "/entry-root")
@@ -20,6 +21,8 @@
 :if (([:len [/interface/bridge/find where name=$bridgeName]] > 0) && ([:len [/interface/bridge/find where name=$bridgeName and comment=$owner]] != 1)) do={ :error "refusing uninstall: bridge ownership does not match" }
 :if (([:len [/interface/veth/find where name=$vethName]] > 0) && ([:len [/interface/veth/find where name=$vethName and comment=$owner]] != 1)) do={ :error "refusing uninstall: veth ownership does not match" }
 :if ([:len [/ip/firewall/nat/find where comment=$natComment]] > 1) do={ :error "refusing uninstall: NAT ownership marker is ambiguous" }
+:if (([:len [/interface/bridge/port/find where bridge=$bridgeName and interface=$vethName]] > 0) && ([:len [/interface/bridge/port/find where bridge=$bridgeName and interface=$vethName and comment=$owner]] != 1)) do={ :error "refusing uninstall: bridge-port ownership does not match" }
+:if (([:len [/ip/address/find where interface=$bridgeName and address=$entryGatewayCIDR]] > 0) && ([:len [/ip/address/find where interface=$bridgeName and address=$entryGatewayCIDR and comment=$owner]] != 1)) do={ :error "refusing uninstall: IP-address ownership does not match" }
 
 :local containerId [/container/find where name=$containerName and comment=$owner]
 :if ([:len [/ip/firewall/nat/find where comment=$natComment]] > 0) do={ /ip/firewall/nat/disable [find where comment=$natComment] }
@@ -32,9 +35,9 @@
 }
 :if ([:len [/ip/firewall/nat/find where comment=$natComment]] > 0) do={ /ip/firewall/nat/remove [find where comment=$natComment] }
 /container/envs/remove [find where list=$envList]
-:if ([:len [/interface/bridge/port/find where comment=$owner]] > 0) do={ /interface/bridge/port/remove [find where comment=$owner] }
+:if ([:len [/interface/bridge/port/find where bridge=$bridgeName and interface=$vethName and comment=$owner]] > 0) do={ /interface/bridge/port/remove [find where bridge=$bridgeName and interface=$vethName and comment=$owner] }
 :if ([:len [/interface/veth/find where name=$vethName and comment=$owner]] > 0) do={ /interface/veth/remove [find where name=$vethName and comment=$owner] }
-:if ([:len [/ip/address/find where comment=$owner]] > 0) do={ /ip/address/remove [find where comment=$owner] }
+:if ([:len [/ip/address/find where interface=$bridgeName and address=$entryGatewayCIDR and comment=$owner]] > 0) do={ /ip/address/remove [find where interface=$bridgeName and address=$entryGatewayCIDR and comment=$owner] }
 :if ([:len [/interface/bridge/find where name=$bridgeName and comment=$owner]] > 0) do={ /interface/bridge/remove [find where name=$bridgeName and comment=$owner] }
 :if ([:len [/container/find where layer-dir=$layerDir]] = 0) do={
   :if ([:len [/file/find where name=$rootDir]] > 0) do={ /file/remove [find where name=$rootDir] }

@@ -8,6 +8,11 @@ output_dir="${OUTPUT_DIR:-$source_root/dist}"
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 
+if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*$ ]]; then
+  printf 'invalid prerelease version: %s\n' "$version" >&2
+  exit 64
+fi
+
 bundle="$work_dir/udpredund-$version-routeros-templates"
 mkdir -p "$bundle" "$output_dir"
 install -m 0644 "$source_root/deploy/routeros/"*.rsc "$bundle/"

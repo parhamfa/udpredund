@@ -137,8 +137,8 @@ RouterOS administrative access as trusted.
 2. If you changed `entryPrefix` or `storageRoot`, make the same edits at the top
    of `uninstall-entry.rsc`.
 3. Import the entry uninstaller.
-4. If you changed `storageRoot` on the exit, update `uninstall-exit.rsc`, then
-   import it.
+4. If you changed `exitPrefix` or `storageRoot` on the exit, make the same edits
+   in `uninstall-exit.rsc`, then import it.
 
 ```routeros
 /import file-name=uninstall-entry.rsc

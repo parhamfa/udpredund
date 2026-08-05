@@ -1,5 +1,6 @@
 # udpredund v0.1.0-beta.1 - RouterOS exit uninstaller
-# Edit this block only if you changed the matching installer value.
+# Edit this block only if you changed the matching installer values.
+:local exitPrefix "10.254.242"
 :local storageRoot "udpredund"
 
 :local owner "udpredund:v0.1-exit"
@@ -11,6 +12,7 @@
 :local ptContainerName "udrbx-pt"
 :local udrContainerName "udrbx-udr"
 :local natComment "udpredund:v0.1-exit-icmp-dnat"
+:local exitGatewayCIDR ($exitPrefix . ".1/24")
 :local ptRootDir ($storageRoot . "/exit-pt-root")
 :local udrRootDir ($storageRoot . "/exit-udr-root")
 :local layerDir ($storageRoot . "/exit-layers")
@@ -22,6 +24,9 @@
 :if (([:len [/interface/veth/find where name=$ptVethName]] > 0) && ([:len [/interface/veth/find where name=$ptVethName and comment=$owner]] != 1)) do={ :error "refusing uninstall: PingTunnel veth ownership does not match" }
 :if (([:len [/interface/veth/find where name=$udrVethName]] > 0) && ([:len [/interface/veth/find where name=$udrVethName and comment=$owner]] != 1)) do={ :error "refusing uninstall: UDR veth ownership does not match" }
 :if ([:len [/ip/firewall/nat/find where comment=$natComment]] > 1) do={ :error "refusing uninstall: NAT ownership marker is ambiguous" }
+:if (([:len [/interface/bridge/port/find where bridge=$bridgeName and interface=$ptVethName]] > 0) && ([:len [/interface/bridge/port/find where bridge=$bridgeName and interface=$ptVethName and comment=$owner]] != 1)) do={ :error "refusing uninstall: PingTunnel bridge-port ownership does not match" }
+:if (([:len [/interface/bridge/port/find where bridge=$bridgeName and interface=$udrVethName]] > 0) && ([:len [/interface/bridge/port/find where bridge=$bridgeName and interface=$udrVethName and comment=$owner]] != 1)) do={ :error "refusing uninstall: UDR bridge-port ownership does not match" }
+:if (([:len [/ip/address/find where interface=$bridgeName and address=$exitGatewayCIDR]] > 0) && ([:len [/ip/address/find where interface=$bridgeName and address=$exitGatewayCIDR and comment=$owner]] != 1)) do={ :error "refusing uninstall: IP-address ownership does not match" }
 
 :local ptContainer [/container/find where name=$ptContainerName and comment=$owner]
 :local udrContainer [/container/find where name=$udrContainerName and comment=$owner]
@@ -43,10 +48,11 @@
 :if ([:len [/ip/firewall/nat/find where comment=$natComment]] > 0) do={ /ip/firewall/nat/remove [find where comment=$natComment] }
 /container/envs/remove [find where list=$ptEnvList]
 /container/envs/remove [find where list=$udrEnvList]
-:if ([:len [/interface/bridge/port/find where comment=$owner]] > 0) do={ /interface/bridge/port/remove [find where comment=$owner] }
+:if ([:len [/interface/bridge/port/find where bridge=$bridgeName and interface=$ptVethName and comment=$owner]] > 0) do={ /interface/bridge/port/remove [find where bridge=$bridgeName and interface=$ptVethName and comment=$owner] }
+:if ([:len [/interface/bridge/port/find where bridge=$bridgeName and interface=$udrVethName and comment=$owner]] > 0) do={ /interface/bridge/port/remove [find where bridge=$bridgeName and interface=$udrVethName and comment=$owner] }
 :if ([:len [/interface/veth/find where name=$ptVethName and comment=$owner]] > 0) do={ /interface/veth/remove [find where name=$ptVethName and comment=$owner] }
 :if ([:len [/interface/veth/find where name=$udrVethName and comment=$owner]] > 0) do={ /interface/veth/remove [find where name=$udrVethName and comment=$owner] }
-:if ([:len [/ip/address/find where comment=$owner]] > 0) do={ /ip/address/remove [find where comment=$owner] }
+:if ([:len [/ip/address/find where interface=$bridgeName and address=$exitGatewayCIDR and comment=$owner]] > 0) do={ /ip/address/remove [find where interface=$bridgeName and address=$exitGatewayCIDR and comment=$owner] }
 :if ([:len [/interface/bridge/find where name=$bridgeName and comment=$owner]] > 0) do={ /interface/bridge/remove [find where name=$bridgeName and comment=$owner] }
 :if ([:len [/container/find where layer-dir=$layerDir]] = 0) do={
   :if ([:len [/file/find where name=$ptRootDir]] > 0) do={ /file/remove [find where name=$ptRootDir] }

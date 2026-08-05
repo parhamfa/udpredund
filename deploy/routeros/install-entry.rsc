@@ -44,6 +44,8 @@
 :if ([:len [/container/find where name=$containerName]] > 0) do={ :error ("object collision: " . $containerName) }
 :if ([:len [/container/envs/find where list=$envList]] > 0) do={ :error ("environment-list collision: " . $envList) }
 :if ([:len [/ip/firewall/nat/find where comment=$natComment]] > 0) do={ :error ("NAT-rule collision: " . $natComment) }
+:if ([:len [/interface/bridge/port/find where comment=$owner]] > 0) do={ :error ("ownership-marker collision on bridge port: " . $owner) }
+:if ([:len [/ip/address/find where comment=$owner]] > 0) do={ :error ("ownership-marker collision on IP address: " . $owner) }
 :if ([:len [/ip/address/find where address~$entryPrefix]] > 0) do={ :error ("address collision under prefix: " . $entryPrefix) }
 :if ([:len [/file/find where name=$rootDir]] > 0) do={ :error ("root-dir collision: " . $rootDir) }
 :if ([:len [/file/find where name=$layerDir]] > 0) do={ :error ("layer-dir collision: " . $layerDir) }

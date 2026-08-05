@@ -10,6 +10,11 @@ output_dir="${OUTPUT_DIR:-$source_root/dist}"
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 
+if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*$ ]]; then
+  printf 'invalid prerelease version: %s\n' "$version" >&2
+  exit 64
+fi
+
 case "$architecture" in
   amd64|arm64) ;;
   *) printf 'unsupported architecture: %s\n' "$architecture" >&2; exit 64 ;;

@@ -51,6 +51,8 @@
 :if ([:len [/container/envs/find where list=$ptEnvList]] > 0) do={ :error ("environment-list collision: " . $ptEnvList) }
 :if ([:len [/container/envs/find where list=$udrEnvList]] > 0) do={ :error ("environment-list collision: " . $udrEnvList) }
 :if ([:len [/ip/firewall/nat/find where comment=$natComment]] > 0) do={ :error ("NAT-rule collision: " . $natComment) }
+:if ([:len [/interface/bridge/port/find where comment=$owner]] > 0) do={ :error ("ownership-marker collision on bridge port: " . $owner) }
+:if ([:len [/ip/address/find where comment=$owner]] > 0) do={ :error ("ownership-marker collision on IP address: " . $owner) }
 :if ([:len [/ip/address/find where address~$exitPrefix]] > 0) do={ :error ("address collision under prefix: " . $exitPrefix) }
 :if ([:len [/file/find where name=$ptRootDir]] > 0) do={ :error ("root-dir collision: " . $ptRootDir) }
 :if ([:len [/file/find where name=$udrRootDir]] > 0) do={ :error ("root-dir collision: " . $udrRootDir) }
