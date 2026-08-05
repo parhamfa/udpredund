@@ -1,0 +1,36 @@
+# Build outputs
+/bin/
+/dist/
+/release/
+*.tar
+*.tar.gz
+*.zip
+*.deb
+
+# Test and coverage outputs
+*.cover
+*.out
+/coverage/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*_ssh.json
+local_ssh.json
+server_ssh.json
+
+# Operational evidence must not enter the public repository
+*.pcap
+*.pcapng
+*.log
+*.backup
+*.rsc.backup
+
+# Editor and OS files
+.DS_Store
+.idea/
+.vscode/
+
