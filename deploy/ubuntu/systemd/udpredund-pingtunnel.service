@@ -1,0 +1,44 @@
+# Managed by github.com/parhamfa/udpredund
+[Unit]
+Description=udpredund PingTunnel ICMP carrier server
+Documentation=https://github.com/parhamfa/udpredund
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/udpredund/udpredund.env
+ExecStart=/usr/local/libexec/udpredund/pingtunnel -type server -key ${PT_KEY} -loglevel ${PT_LOGLEVEL} -nolog 1
+Restart=on-failure
+RestartSec=2s
+DynamicUser=yes
+NoNewPrivileges=yes
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_UNIX
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+LogRateLimitIntervalSec=60s
+LogRateLimitBurst=20
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+.git
+.github
+dist
+docs
+deploy
+scripts
+third_party
+*.md
+*.pcap
+*.pcapng
+*.log
+server_ssh.json
+local_ssh.json

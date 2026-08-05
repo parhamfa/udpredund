@@ -1,0 +1,44 @@
+# Managed by github.com/parhamfa/udpredund
+[Unit]
+Description=udpredund UDR1 deduplicating relay server
+Documentation=https://github.com/parhamfa/udpredund
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/udpredund/udpredund.env
+ExecStart=/usr/local/libexec/udpredund/udpredund -mode server -listen ${UDR_LISTEN} -next ${UDR_NEXT} -copies ${COPIES} -max-duplicate-size ${MAX_DUPLICATE_SIZE} -gap ${COPY_GAP}
+Restart=on-failure
+RestartSec=2s
+DynamicUser=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_UNIX
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+LogRateLimitIntervalSec=60s
+LogRateLimitBurst=20
+
+[Install]
+WantedBy=multi-user.target
