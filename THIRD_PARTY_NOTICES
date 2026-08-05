@@ -1,0 +1,20 @@
+Third-party notices for udpredund
+=================================
+
+PingTunnel
+----------
+
+Source: https://github.com/esrrhs/pingtunnel
+Pinned revision: a0d08ec7d44f4829c543416542ef3734453a4a55
+License: MIT
+Copyright (c) 2018 zhao xin
+
+The full license text is stored at third_party/pingtunnel/LICENSE and is also
+included in the production container image and Ubuntu release bundles.
+
+Runtime distribution packages
+-----------------------------
+
+The production image installs Bash, CA certificates, and tini from Debian.
+Their package metadata and corresponding license texts remain available under
+/usr/share/doc and /usr/share/common-licenses inside the image.

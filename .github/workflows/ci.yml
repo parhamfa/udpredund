@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "agent/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.26.5"
+
+jobs:
+  go:
+    name: Go
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Check formatting
+        run: test -z "$(gofmt -l cmd internal container/tests/udp-tool)"
+
+      - name: Unit and integration tests
+        run: go test ./... -count=1 -coverprofile=coverage.out
+
+      - name: Race tests
+        run: go test -race ./... -count=1
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Fuzz UDR1 decoder
+        run: go test ./internal/relay -run '^$' -fuzz '^FuzzDecode$' -fuzztime=15s
+
+      - name: Vulnerability scan
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          govulncheck ./...
+
+      - name: Cross-build static Linux binaries
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /tmp/udpredund-linux-amd64 ./cmd/udpredund
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o /tmp/udpredund-linux-arm64 ./cmd/udpredund
+          file /tmp/udpredund-linux-amd64 /tmp/udpredund-linux-arm64
+
+  shell:
+    name: Shell and deployment templates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends shellcheck
+
+      - name: Lint shell and RouterOS templates
+        run: make lint
+
+      - name: Test image entrypoint
+        run: ./container/tests/entrypoint_test.sh
+
+      - name: Test Ubuntu installer and uninstaller
+        run: ./deploy/ubuntu/test-installer.sh
+
+  container:
+    name: Container (${{ matrix.arch }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Build image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./container/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          tags: udpredund-ci:${{ matrix.arch }}
+          provenance: false
+          sbom: false
+          build-args: |
+            VERSION=ci
+            REVISION=${{ github.sha }}
+            BUILD_DATE=1970-01-01T00:00:00Z
+
+      - name: Verify image metadata and binaries
+        run: |
+          docker run --rm --platform linux/${{ matrix.arch }} -e ROLE=verify udpredund-ci:${{ matrix.arch }}
+          test "$(docker image inspect udpredund-ci:${{ matrix.arch }} --format '{{json .Config.Cmd}}')" = "null"
+          test "$(docker image inspect udpredund-ci:${{ matrix.arch }} --format '{{index .Config.Labels "org.opencontainers.image.licenses"}}')" = "MIT"
+
+      - name: End-to-end PingTunnel and UDR1 echo
+        env:
+          IMAGE: udpredund-ci:${{ matrix.arch }}
+          PLATFORM: linux/${{ matrix.arch }}
+        run: ./container/tests/image_e2e.sh
+
+  privacy:
+    name: Secret and privacy scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install privacy-check tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends file ripgrep
+
+      - name: Check tracked artifacts and operational identifiers
+        run: make privacy
+
+      - name: Scan Git history for secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,21 @@
+[
+  {
+    "name": "empty-sequence-zero",
+    "sequence": 0,
+    "payload_hex": "",
+    "frame_hex": "554452310000000000000000"
+  },
+  {
+    "name": "known-big-endian-sequence",
+    "sequence": 72623859790382856,
+    "payload_hex": "7767",
+    "frame_hex": "5544523101020304050607087767"
+  },
+  {
+    "name": "deployed-style-payload",
+    "sequence": 42,
+    "payload_hex": "7769726567756172642d646174616772616d",
+    "frame_hex": "55445231000000000000002a7769726567756172642d646174616772616d"
+  }
+]
+

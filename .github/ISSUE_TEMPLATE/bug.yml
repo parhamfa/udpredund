@@ -1,0 +1,52 @@
+name: Bug report
+description: Report a reproducible non-security defect
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include keys, public IPs, hostnames, packet captures, RouterOS backups, or production logs. Report vulnerabilities through the private security advisory form instead.
+  - type: input
+    id: version
+    attributes:
+      label: Version or image digest
+      placeholder: v0.1.0-beta.1 or sha256:...
+    validations:
+      required: true
+  - type: dropdown
+    id: topology
+    attributes:
+      label: Topology
+      options:
+        - Standalone relay
+        - RouterOS entry to RouterOS exit
+        - RouterOS entry to Ubuntu exit
+        - Container-only test
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and sanitized reproduction
+      description: Use documentation-range addresses and redact all keys and operational identifiers.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Verification already performed
+      description: Include sanitized counter values and commands, not raw logs.
+  - type: checkboxes
+    id: authorization
+    attributes:
+      label: Authorization and privacy
+      options:
+        - label: I am authorized to test the systems involved and removed sensitive operational data.
+          required: true
