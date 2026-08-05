@@ -31,7 +31,7 @@ fi
 
 test -x "$DESTDIR/usr/local/libexec/udpredund/udpredund"
 test -x "$DESTDIR/usr/local/libexec/udpredund/pingtunnel"
-test "$(stat -f '%Lp' "$DESTDIR/etc/udpredund/udpredund.env" 2>/dev/null || stat -c '%a' "$DESTDIR/etc/udpredund/udpredund.env")" = "600"
+test "$(stat -c '%a' "$DESTDIR/etc/udpredund/udpredund.env" 2>/dev/null || stat -f '%Lp' "$DESTDIR/etc/udpredund/udpredund.env")" = "600"
 grep -F 'PT_KEY="1732050807"' "$DESTDIR/etc/udpredund/udpredund.env" >/dev/null
 grep -F 'UDR_NEXT="127.0.0.1:51820"' "$DESTDIR/etc/udpredund/udpredund.env" >/dev/null
 
