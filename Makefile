@@ -1,4 +1,4 @@
-.PHONY: test test-race vet fuzz lint privacy build-binaries package
+.PHONY: test test-race vet fuzz lint privacy supply-chain build-binaries package
 
 VERSION ?= dev
 REVISION ?= $(shell git rev-parse HEAD 2>/dev/null || printf unknown)
@@ -19,10 +19,14 @@ fuzz:
 lint:
 	test -z "$$(gofmt -l cmd internal container/tests/udp-tool)"
 	shellcheck container/entrypoint.sh container/tests/entrypoint_test.sh deploy/ubuntu/*.sh scripts/*.sh
+	scripts/verify-supply-chain-pins.sh
 	scripts/lint-routeros.sh
 
 privacy:
 	scripts/privacy-check.sh
+
+supply-chain:
+	scripts/verify-supply-chain-pins.sh
 
 build-binaries:
 	VERSION="$(VERSION)" REVISION="$(REVISION)" BUILD_DATE="$(BUILD_DATE)" scripts/build-binaries.sh
