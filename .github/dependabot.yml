@@ -23,12 +23,12 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "04:30"
       timezone: Asia/Tehran
     labels: [dependencies, ci]
     open-pull-requests-limit: 5
     groups:
-      codeql-action:
-        patterns: ["github/codeql-action*"]
+      github-actions:
+        patterns: ["*"]
+        update-types: [minor, patch]
